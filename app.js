@@ -740,7 +740,7 @@ window.selectSearch = (val) => {
   document.getElementById('med-search').value = val;
   currentSearch = val.toLowerCase();
   document.getElementById('med-autocomplete').style.display = 'none';
-  renderPatientResults();
+  renderPatientResults();// firebase update
 };
 
 const renderPatientResults = async () => {
