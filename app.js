@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "YOUR_KEY",
@@ -100,7 +100,7 @@ const initDB = async () => {
 
 const getDB = async (key) => {
   const snapshot = await get(ref(db, key));
-  return snapshot.exists() ? snapshot.val() : null;
+  return snapshot.val();
 };
 const setDB = async (key, val) => {
   await set(ref(db, key), val);
@@ -921,10 +921,10 @@ const updateMapMarkers = () => {
 };
 
 document.addEventListener('DOMContentLoaded', async () => { 
-  await initDB();   // 👈 important
-  renderApp(); 
+  await initDB(); 
+  renderApp();
+  listenToStock(); // 🔥 REAL-TIME
 });
-
 // Real-time synchronization across different tabs/windows
 window.addEventListener('storage', (e) => {
   if (e.key === 'mednear_stock') {
@@ -933,3 +933,15 @@ window.addEventListener('storage', (e) => {
     if (currentView === 'admin-map' && typeof updateMapMarkers === 'function') updateMapMarkers();
   }
 });
+const listenToStock = () => {
+  const stockRef = ref(db, 'stock');
+
+  onValue(stockRef, (snapshot) => {
+    if (currentView === 'patient') {
+      renderPatientResults();
+    }
+    if (currentView === 'worker-dash') {
+      renderWorkerDashboard();
+    }
+  });
+};
