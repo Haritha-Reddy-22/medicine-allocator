@@ -1,3 +1,18 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "YOUR_KEY",
+  authDomain: "mednear-a5b6f.firebaseapp.com",
+  projectId: "mednear-a5b6f",
+  storageBucket: "mednear-a5b6f.appspot.com",
+  messagingSenderId: "326318333929",
+  appId: "YOUR_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
 // Data Setup
 const MOCK_MEDICINES = [
   "Paracetamol 500mg", "Amoxicillin 250mg", "Ibuprofen 400mg", "Cetirizine 10mg", "ORS Powder", 
@@ -41,16 +56,33 @@ const MOCK_CENTRES = [
   { id: 30, name: "Madhurawada Medicals", village: "Madhurawada", lat: 17.8155, lng: 83.3619 }
 ];
 
-const initDB = () => {
-  if (!localStorage.getItem('mednear_medicines')) localStorage.setItem('mednear_medicines', JSON.stringify(MOCK_MEDICINES));
-  
-  // Force refresh of local storage if we added more mock centres
-  const savedCentres = JSON.parse(localStorage.getItem('mednear_centres') || '[]');
-  if (savedCentres.length < MOCK_CENTRES.length) {
-    localStorage.setItem('mednear_centres', JSON.stringify(MOCK_CENTRES));
-    localStorage.removeItem('mednear_stock'); // Force new stock to be generated for new centres
+const initDB = async () => {
+  const snapshot = await get(ref(db, "medicines"));
+
+  if (!snapshot.exists()) {
+    console.log("Uploading initial data to Firebase...");
+
+    await set(ref(db, "medicines"), MOCK_MEDICINES);
+    await set(ref(db, "centres"), MOCK_CENTRES);
+
+    const stock = {};
+    const now = Date.now();
+
+    MOCK_CENTRES.forEach(c => {
+      stock[c.id] = {};
+      MOCK_MEDICINES.forEach(m => {
+        stock[c.id][m] = {
+          inStock: Math.random() > 0.3,
+          updatedAt: now
+        };
+      });
+    });
+
+    await set(ref(db, "stock"), stock);
+  } else {
+    console.log("Firebase already initialized");
   }
-  
+};
   if (!localStorage.getItem('mednear_stock')) {
     const stock = {};
     const now = Date.now();
@@ -66,10 +98,16 @@ const initDB = () => {
   }
 };
 
-const getDB = (key) => JSON.parse(localStorage.getItem(`mednear_${key}`));
-const setDB = (key, val) => localStorage.setItem(`mednear_${key}`, JSON.stringify(val));
+const getDB = async (key) => {
+  const snapshot = await get(ref(db, key));
+  return snapshot.exists() ? snapshot.val() : null;
+};
+const setDB = async (key, val) => {
+  await set(ref(db, key), val);
+};
 
-// i18n
+
+// i18
 const i18n = {
   en: {
     app_title: "Medicine is nearby.",
@@ -705,12 +743,13 @@ window.selectSearch = (val) => {
   renderPatientResults();
 };
 
-const renderPatientResults = () => {
+const renderPatientResults = async () => {
   const container = document.getElementById('patient-results');
   if (!container || !userLoc) return;
   
-  const centres = getDB('centres');
-  const stock = getDB('stock');
+  const centres = await getDB('centres');
+  const stock = await getDB('stock');
+  if (!centres || !stock) return;
   const query = currentSearch.trim();
   const now = Date.now();
   
@@ -881,7 +920,10 @@ const updateMapMarkers = () => {
   });
 };
 
-document.addEventListener('DOMContentLoaded', () => { initDB(); renderApp(); });
+document.addEventListener('DOMContentLoaded', async () => { 
+  await initDB();   // 👈 important
+  renderApp(); 
+});
 
 // Real-time synchronization across different tabs/windows
 window.addEventListener('storage', (e) => {
